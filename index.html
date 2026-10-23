@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analista IA de Producción & Simulación | EPN</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        epn: {
+                            navy: '#002855',
+                            gold: '#cda851',
+                            red: '#990000'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- SheetJS (xlsx) para leer hojas de cálculo en el navegador -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body class="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-screen p-3 md:p-6 font-sans transition-colors duration-200">
+    <div class="max-w-6xl mx-auto space-y-5">
+
+        <!-- Encabezado Institucional -->
+        <header class="flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-300 dark:border-slate-700 pb-4 gap-4 bg-white dark:bg-slate-800/80 p-4 rounded-2xl shadow-sm">
+            <div class="flex items-center gap-4">
+                <div class="p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-inner flex items-center justify-center">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/8/8c/Escudo_de_la_Escuela_Polit%C3%A9cnica_Nacional.png" 
+                         alt="Logo EPN" class="h-12 w-auto object-contain"
+                         onerror="this.style.display='none'; document.getElementById('logoFallback').style.display='flex';">
+                    <div id="logoFallback" class="hidden h-12 w-12 rounded-lg bg-red-800 text-white font-black text-xs items-center justify-center text-center">
+                        EPN
+                    </div>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[11px] font-bold px-2 py-0.5 rounded bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300 border border-red-300 dark:border-red-800/50">
+                            ESCUELA POLITÉCNICA NACIONAL
+                        </span>
+                        <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Ingeniería de la Producción</span>
+                    </div>
+                    <h1 class="text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-0.5 flex items-center gap-2">
+                        <span>🤖</span> Asistente IA para Análisis de Simulación & Excel
+                    </h1>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-2">
+                <button onclick="cargarExcelDemo()" class="px-3 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow transition">
+                    ⚡ Cargar Datos Demo (FlexSim)
+                </button>
+                <button onclick="toggleTheme()" class="p-2 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-amber-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition" title="Cambiar tema">
+                    <span id="themeIcon">☀️</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Contenedor Principal: 2 Columnas -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+            <!-- Columna Izquierda: Cargar y Vista Previa (5 cols) -->
+            <div class="lg:col-span-5 space-y-4">
+                
+                <div class="bg-white dark:bg-slate-800/90 p-5 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-sm space-y-4">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                        <span>📁</span> 1. Cargar Reporte (.xlsx / .csv)
+                    </h2>
+
+                    <div class="border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-emerald-500 rounded-xl p-6 text-center cursor-pointer transition bg-slate-50 dark:bg-slate-900/40 relative">
+                        <input id="inputExcel" type="file" accept=".xlsx, .xls, .csv" class="absolute inset-0 opacity-0 cursor-pointer" onchange="cargarArchivo(event)">
+                        <div class="space-y-1.5 pointer-events-none">
+                            <span class="text-3xl block">📊</span>
+                            <span id="labelArchivo" class="text-xs font-bold text-slate-700 dark:text-slate-300 block">Haz clic o arrastra tu archivo Excel aquí</span>
+                            <span class="text-[10px] text-slate-400 block">Reportes de simulación, tiempos, demandas o capacidad</span>
+                        </div>
+                    </div>
+
+                    <div id="panelMeta" class="hidden space-y-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                        <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Columnas identificadas:</span>
+                        <div id="listaColumnas" class="flex flex-wrap gap-1.5"></div>
+                        <span id="totalFilas" class="text-[10px] text-slate-400 block pt-1 font-mono"></span>
+                    </div>
+                </div>
+
+                <div id="panelPreview" class="hidden bg-white dark:bg-slate-800/90 p-4 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-sm space-y-2">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                        Vista Previa de Datos (Primeras 5 filas)
+                    </h3>
+                    <div class="overflow-x-auto max-h-52 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <table id="tablaDatos" class="w-full text-left text-[11px] font-mono"></table>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Columna Derecha: Asistente IA (7 cols) -->
+            <div class="lg:col-span-7 space-y-4">
+                
+                <div class="bg-white dark:bg-slate-800/90 p-5 rounded-2xl border border-slate-300 dark:border-slate-700 shadow-sm space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3">
+                        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                            <span>💬</span> 2. Consultas en Lenguaje Natural
+                        </h2>
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800 font-bold font-mono">
+                            Motor Estadístico Activo
+                        </span>
+                    </div>
+
+                    <div>
+                        <span class="text-[11px] font-semibold text-slate-500 dark:text-slate-400 block mb-2">Consultas Rápidas Recomendadas:</span>
+                        <div class="flex flex-wrap gap-1.5">
+                            <button onclick="preguntarRapido('¿Cuál fue el porcentaje de error?')" class="text-xs px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700/60 hover:bg-emerald-100 dark:hover:bg-emerald-950/50 hover:text-emerald-700 dark:hover:text-emerald-300 border border-slate-200 dark:border-slate-600 transition text-slate-700 dark:text-slate-300 font-medium">
+                                📈 ¿Cuál fue el porcentaje de error?
+                            </button>
+                            <button onclick="preguntarRapido('¿Cuál es el cuello de botella?')" class="text-xs px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700/60 hover:bg-emerald-100 dark:hover:bg-emerald-950/50 hover:text-emerald-700 dark:hover:text-emerald-300 border border-slate-200 dark:border-slate-600 transition text-slate-700 dark:text-slate-300 font-medium">
+                                ⚠️ ¿Cuál es el cuello de botella?
+                            </button>
+                            <button onclick="preguntarRapido('¿Cuál estación tiene mayor tiempo ocioso?')" class="text-xs px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700/60 hover:bg-emerald-100 dark:hover:bg-emerald-950/50 hover:text-emerald-700 dark:hover:text-emerald-300 border border-slate-200 dark:border-slate-600 transition text-slate-700 dark:text-slate-300 font-medium">
+                                ⏱️ ¿Mayor tiempo ocioso?
+                            </button>
+                            <button onclick="preguntarRapido('Dame un resumen general')" class="text-xs px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700/60 hover:bg-emerald-100 dark:hover:bg-emerald-950/50 hover:text-emerald-700 dark:hover:text-emerald-300 border border-slate-200 dark:border-slate-600 transition text-slate-700 dark:text-slate-300 font-medium">
+                                📋 Resumen General
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Input de Pregunta -->
+                    <div class="flex gap-2">
+                        <input id="inputPregunta" type="text" placeholder="Escribe tu consulta (ej. ¿cuál fue el porcentaje de error?)" 
+                            onkeydown="if(event.key==='Enter') procesarConsultaIA()"
+                            class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 font-medium">
+                        <button onclick="procesarConsultaIA()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 font-bold text-xs rounded-xl text-white transition flex items-center gap-1.5 shadow">
+                            Preguntar
+                        </button>
+                    </div>
+
+                    <!-- Cuadro de Respuesta -->
+                    <div class="space-y-2 pt-1">
+                        <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Respuesta de la IA:</span>
+                        <div id="cajaRespuesta" class="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 min-h-[140px] flex items-center justify-center text-xs text-slate-500 text-center">
+                            Sube un archivo de Excel o carga los datos demo para iniciar las preguntas.
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+        <footer class="pt-4 text-center text-xs text-slate-500 font-mono">
+            Escuela Politécnica Nacional &bull; Módulo de Procesamiento de Lenguaje Natural para Métricas Industriales
+        </footer>
+
+    </div>
+
+    <!-- Script de Lógica Analítica -->
+    <script>
+        let datosExcel = [];
+        let nombresColumnas = [];
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            const icon = document.getElementById('themeIcon');
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                icon.textContent = '🌙';
+            } else {
+                html.classList.add('dark');
+                icon.textContent = '☀️';
+            }
+        }
+
+        function cargarArchivo(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            document.getElementById('labelArchivo').textContent = file.name;
+            const reader = new FileReader();
+
+            reader.onload = function(evt) {
+                try {
+                    const data = new Uint8Array(evt.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const primeraHoja = workbook.SheetNames[0];
+                    const hoja = workbook.Sheets[primeraHoja];
+
+                    datosExcel = XLSX.utils.sheet_to_json(hoja);
+
+                    if (datosExcel.length === 0) {
+                        alert('El archivo no contiene filas válidas.');
+                        return;
+                    }
+
+                    nombresColumnas = Object.keys(datosExcel[0]);
+                    mostrarMetadatos(file.name);
+                    renderizarTablaPreview();
+
+                    document.getElementById('cajaRespuesta').innerHTML = `
+                        <div class="text-left w-full space-y-2 text-slate-700 dark:text-slate-300">
+                            <p class="font-bold text-emerald-600 dark:text-emerald-400">✅ Archivo cargado con éxito.</p>
+                            <p>Se identificaron <strong>${datosExcel.length} registros</strong> con las columnas: <span class="font-mono text-slate-900 dark:text-white font-bold">${nombresColumnas.join(', ')}</span>.</p>
+                            <p class="text-slate-500 text-[11px]">Ya puedes escribir tu pregunta en la caja superior.</p>
+                        </div>
+                    `;
+                } catch (err) {
+                    alert('Error al leer el archivo: ' + err.message);
+                }
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+
+        function cargarExcelDemo() {
+            datosExcel = [
+                { Estacion: 'Corte y Preparación', Demanda: 600, Produccion_Real: 582, Ocupacion_Pct: 91.5, Tiempo_Ocioso: 8.5 },
+                { Estacion: 'Ensamble Principal', Demanda: 600, Produccion_Real: 574, Ocupacion_Pct: 97.4, Tiempo_Ocioso: 2.6 },
+                { Estacion: 'Inspección Calidad', Demanda: 600, Produccion_Real: 565, Ocupacion_Pct: 83.0, Tiempo_Ocioso: 17.0 },
+                { Estacion: 'Empaque y Embalaje', Demanda: 600, Produccion_Real: 560, Ocupacion_Pct: 76.2, Tiempo_Ocioso: 23.8 }
+            ];
+            nombresColumnas = Object.keys(datosExcel[0]);
+            document.getElementById('labelArchivo').textContent = 'simulacion_flexsim_reporte.xlsx';
+            mostrarMetadatos('simulacion_flexsim_reporte.xlsx');
+            renderizarTablaPreview();
+
+            document.getElementById('cajaRespuesta').innerHTML = `
+                <div class="text-left w-full space-y-2 text-slate-700 dark:text-slate-300">
+                    <p class="font-bold text-emerald-600 dark:text-emerald-400">⚡ Datos Demo de FlexSim Cargados.</p>
+                    <p>Contiene registros de estaciones, demanda objetivo, producción real, ocupación y holguras.</p>
+                    <p class="text-slate-500 text-[11px]">Haz clic en el botón <em>"¿Cuál fue el porcentaje de error?"</em> para probar el cálculo automático.</p>
+                </div>
+            `;
+        }
+
+        function mostrarMetadatos(nombre) {
+            document.getElementById('panelMeta').classList.remove('hidden');
+            document.getElementById('panelPreview').classList.remove('hidden');
+
+            const contTags = document.getElementById('listaColumnas');
+            contTags.innerHTML = '';
+            nombresColumnas.forEach(col => {
+                const span = document.createElement('span');
+                span.className = 'text-[10px] bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 font-mono font-medium';
+                span.textContent = col;
+                contTags.appendChild(span);
+            });
+
+            document.getElementById('totalFilas').textContent = `Total filas registradas: ${datosExcel.length}`;
+        }
+
+        function renderizarTablaPreview() {
+            const tabla = document.getElementById('tablaDatos');
+            tabla.innerHTML = '';
+
+            const thead = document.createElement('thead');
+            thead.className = 'bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 uppercase text-[10px] border-b border-slate-200 dark:border-slate-700';
+            let thHTML = '<tr>';
+            nombresColumnas.forEach(col => thHTML += `<th class="py-1.5 px-2.5">${col}</th>`);
+            thHTML += '</tr>';
+            thead.innerHTML = thHTML;
+            tabla.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            tbody.className = 'divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900/40 text-slate-700 dark:text-slate-300';
+            datosExcel.slice(0, 5).forEach(row => {
+                let trHTML = '<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">';
+                nombresColumnas.forEach(col => {
+                    trHTML += `<td class="py-1 px-2.5">${row[col] !== undefined ? row[col] : '-'}</td>`;
+                });
+                trHTML += '</tr>';
+                tbody.innerHTML += trHTML;
+            });
+            tabla.appendChild(tbody);
+        }
+
+        function preguntarRapido(texto) {
+            document.getElementById('inputPregunta').value = texto;
+            procesarConsultaIA();
+        }
+
+        // --- Motor de Consultas en Lenguaje Natural ---
+        function procesarConsultaIA() {
+            const pregunta = document.getElementById('inputPregunta').value.trim();
+            const caja = document.getElementById('cajaRespuesta');
+
+            if (!pregunta) return;
+
+            if (datosExcel.length === 0) {
+                caja.innerHTML = `<span class="text-rose-500 font-semibold">⚠ Sube primero un archivo de Excel o presiona "Cargar Datos Demo".</span>`;
+                return;
+            }
+
+            const pMin = pregunta.toLowerCase();
+            let respuestaHTML = '';
+
+            const buscarColumna = (claves) => {
+                return nombresColumnas.find(col => {
+                    const cMin = col.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                    return claves.some(k => cMin.includes(k));
+                });
+            };
+
+            // 1. PORCENTAJE DE ERROR
+            if (pMin.includes('error') || pMin.includes('porcentaje') || pMin.includes('%')) {
+                const colError = buscarColumna(['error', '% error', 'pct_error']);
+
+                if (colError) {
+                    const valores = datosExcel.map(r => parseFloat(r[colError])).filter(v => !isNaN(v));
+                    const prom = valores.reduce((a, b) => a + b, 0) / valores.length;
+                    respuestaHTML = `
+                        <div class="text-left w-full space-y-2">
+                            <span class="text-emerald-600 dark:text-emerald-400 font-bold text-sm">Respuesta Analítica:</span>
+                            <p class="text-slate-800 dark:text-slate-200 text-sm">
+                                El <strong>porcentaje de error</strong> promedio registrado en la columna <code class="text-emerald-600 dark:text-emerald-400 font-mono font-bold">${colError}</code> fue de <strong class="text-amber-600 dark:text-amber-400 text-base font-mono font-bold">${prom.toFixed(2)}%</strong>.
+                            </p>
+                        </div>
+                    `;
+                } else {
+                    const colDemanda = buscarColumna(['demanda', 'meta', 'plan', 'programad', 'objetivo', 'teoric']);
+                    const colReal = buscarColumna(['produccion', 'real', 'salida', 'producid', 'output']);
+
+                    if (colDemanda && colReal) {
+                        const totalDemanda = datosExcel.reduce((acc, r) => acc + (parseFloat(r[colDemanda]) || 0), 0);
+                        const totalReal = datosExcel.reduce((acc, r) => acc + (parseFloat(r[colReal]) || 0), 0);
+
+                        if (totalDemanda > 0) {
+                            const errorCalculado = (Math.abs(totalDemanda - totalReal) / totalDemanda) * 100;
+                            respuestaHTML = `
+                                <div class="text-left w-full space-y-3">
+                                    <span class="text-emerald-600 dark:text-emerald-400 font-bold text-sm">Respuesta Analítica:</span>
+                                    <p class="text-slate-800 dark:text-slate-100 text-sm leading-relaxed">
+                                        El porcentaje de error calculado entre la demanda programada (<code class="text-sky-600 dark:text-sky-400 font-mono font-bold">${colDemanda}</code>: ${totalDemanda.toLocaleString()}) y la producción real (<code class="text-sky-600 dark:text-sky-400 font-mono font-bold">${colReal}</code>: ${totalReal.toLocaleString()}) es:
+                                    </p>
+                                    <div class="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between shadow-sm">
+                                        <span class="text-slate-500 font-mono text-xs">Fórmula: |Demanda - Real| / Demanda</span>
+                                        <span class="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">${errorCalculado.toFixed(2)}%</span>
+                                    </div>
+                                    <p class="text-[11px] text-slate-500">
+                                        ${errorCalculado <= 5 ? '🟢 El margen de discrepancia está bajo control (< 5%).' : '🔴 Existe una variación significativa mayor al 5% entre lo planeado y la salida.'}
+                                    </p>
+                                </div>
+                            `;
+                        }
+                    } else {
+                        respuestaHTML = `
+                            <div class="text-left w-full space-y-2 text-rose-500 text-xs">
+                                <p class="font-bold">⚠ No fue posible calcular el porcentaje de error.</p>
+                                <p>Tu archivo no contiene una columna explícita de "Error" ni las columnas "Demanda" y "Producción Real" para compararlas.</p>
+                            </div>
+                        `;
+                    }
+                }
+            }
+            // 2. CUELLO DE BOTELLA
+            else if (pMin.includes('cuello de botella') || pMin.includes('mas cargada') || pMin.includes('utilizacion') || pMin.includes('ocupacion')) {
+                const colOcupacion = buscarColumna(['ocupacion', 'utilizacion', 'busy', 'processing', 'carga']);
+                const colEstacion = buscarColumna(['estacion', 'maquina', 'operacion', 'recurso']) || nombresColumnas[0];
+
+                if (colOcupacion) {
+                    let maxVal = -Infinity;
+                    let peorFila = null;
+
+                    datosExcel.forEach(r => {
+                        const v = parseFloat(r[colOcupacion]);
+                        if (!isNaN(v) && v > maxVal) {
+                            maxVal = v;
+                            peorFila = r;
+                        }
+                    });
+
+                    respuestaHTML = `
+                        <div class="text-left w-full space-y-2">
+                            <span class="text-emerald-600 dark:text-emerald-400 font-bold text-sm">Respuesta Analítica:</span>
+                            <p class="text-slate-800 dark:text-slate-200 text-sm">
+                                El cuello de botella principal es la estación <strong class="text-amber-600 dark:text-amber-400 font-bold text-base">${peorFila[colEstacion]}</strong> con un nivel de utilización del <strong class="text-emerald-600 dark:text-emerald-400 font-mono text-base font-bold">${maxVal.toFixed(1)}%</strong>.
+                            </p>
+                        </div>
+                    `;
+                } else {
+                    respuestaHTML = `<div class="text-left text-slate-500 text-xs">No se encontró una columna que represente ocupación o utilización.</div>`;
+                }
+            }
+            // 3. TIEMPO OCIOSO
+            else if (pMin.includes('ocioso') || pMin.includes('inactivo') || pMin.includes('idle') || pMin.includes('espera')) {
+                const colOcioso = buscarColumna(['ocioso', 'inactivo', 'idle', 'espera', 'starved']);
+                const colEstacion = buscarColumna(['estacion', 'maquina', 'operacion']) || nombresColumnas[0];
+
+                if (colOcioso) {
+                    let maxOcioso = -Infinity;
+                    let peorFila = null;
+
+                    datosExcel.forEach(r => {
+                        const v = parseFloat(r[colOcioso]);
+                        if (!isNaN(v) && v > maxOcioso) {
+                            maxOcioso = v;
+                            peorFila = r;
+                        }
+                    });
+
+                    respuestaHTML = `
+                        <div class="text-left w-full space-y-2">
+                            <span class="text-emerald-600 dark:text-emerald-400 font-bold text-sm">Respuesta Analítica:</span>
+                            <p class="text-slate-800 dark:text-slate-200 text-sm">
+                                La estación con mayor tiempo ocioso es <strong class="text-sky-600 dark:text-sky-400 font-bold text-base">${peorFila[colEstacion]}</strong> con <strong class="text-amber-600 dark:text-amber-400 font-mono text-base font-bold">${maxOcioso.toFixed(1)}</strong> unidades de tiempo improductivas.
+                            </p>
+                        </div>
+                    `;
+                } else {
+                    respuestaHTML = `<div class="text-left text-slate-500 text-xs">No se encontró una columna de tiempo ocioso en los datos.</div>`;
+                }
+            }
+            // 4. RESUMEN GENERAL
+            else {
+                respuestaHTML = `
+                    <div class="text-left w-full space-y-3">
+                        <span class="text-emerald-600 dark:text-emerald-400 font-bold text-sm">Resumen Analítico del Archivo:</span>
+                        <p class="text-slate-600 dark:text-slate-300 text-xs">
+                            Se examinaron <strong>${datosExcel.length} registros</strong>. Métricas principales detectadas:
+                        </p>
+                        <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+                            ${nombresColumnas.map(col => {
+                                const vals = datosExcel.map(r => parseFloat(r[col])).filter(v => !isNaN(v));
+                                if (vals.length > 0) {
+                                    const sum = vals.reduce((a, b) => a + b, 0);
+                                    const avg = sum / vals.length;
+                                    return `<div class="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800">
+                                        <span class="text-slate-400 block text-[10px]">${col}</span>
+                                        <span class="text-slate-900 dark:text-white font-bold">Promedio: ${avg.toFixed(2)}</span>
+                                    </div>`;
+                                }
+                                return '';
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            caja.innerHTML = respuestaHTML;
+        }
+    </script>
+</body>
+</html>
